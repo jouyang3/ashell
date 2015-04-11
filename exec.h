@@ -2,6 +2,6 @@
 #define EXEC_H
 
 int execute(char*);
-void arg_parse(char*, int*, char***);
+void arg_parse(char*, int*, char***, int*, char****);
 
 #endif
