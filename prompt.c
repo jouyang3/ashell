@@ -11,7 +11,6 @@ int history_user = 0;
 
 int prompt(char* line)
 {
-    char* prompt_str = "aShell >> ";
     write(STDOUT_FILENO, prompt_str, strlen(prompt_str)*sizeof(char));
     
     char* initline = line;

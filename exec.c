@@ -12,6 +12,19 @@
 #include <errno.h>
 #include <sys/stat.h>
 
+//change stuff here.
+void exec(char** argv)
+{
+    if(strcmp(argv[0],"history") == 0)
+    {
+        history();
+    } else
+    {
+        execvp(argv[0], argv);
+    }
+}
+
+
 int execute(char* line)
 {
     char** s_argv;
@@ -20,22 +33,6 @@ int execute(char* line)
     int p_cmdc = 0;
     arg_parse(line, &s_argc, &s_argv, &p_cmdc, &p_argv);
     free(line);
-    
-    int status = exec(p_cmdc, p_argv);
-
-    //deallocate argument list
-    for(int i=0; i<s_argc; i++)
-        free(*(s_argv+i));
-    free(s_argv);
-    
-    //deallocate command pointer
-    free(p_argv);
-    
-    return status;
-}
-
-int exec(int p_cmdc, char*** p_argv)
-{
     
     //need to premade p_cmdc-1 pipes
     int** pipe_tb = (int**) malloc(sizeof(int*)*(p_cmdc-1));
@@ -61,16 +58,10 @@ int exec(int p_cmdc, char*** p_argv)
             
             char* cmd = p_argv[0][0];
             
-//            printf("cmd: %shaha\n",cmd);
-//            printf("strcmp(cmd, \"history\") = %d\n",strcmp(cmd,"history"));
+            //            printf("cmd: %shaha\n",cmd);
+            //            printf("strcmp(cmd, \"history\") = %d\n",strcmp(cmd,"history"));
             
-            if(strcmp(cmd,"history") == 0)
-            {
-                history();
-            } else
-            {
-                execvp(p_argv[0][0], p_argv[0]);
-            }
+            exec(p_argv[0]);
             print_err(p_argv[0][0]);
         }
         waitpid(pid, &status, 0);
@@ -112,7 +103,8 @@ int exec(int p_cmdc, char*** p_argv)
                     close_pipes(num_pipe, pipe_tb);
                 }
                 
-                execvp(p_argv[i][0], p_argv[i]);
+                //insert stuffs here
+                exec(p_argv[i]);
                 print_err(p_argv[i][0]);
             }
         }
@@ -125,11 +117,21 @@ int exec(int p_cmdc, char*** p_argv)
         
         for(int i=0; i<p_cmdc; i++)
         {
-                        printf("waiting on %d\n",pids[i]);
+            printf("waiting on %d\n",pids[i]);
             waitpid(pids[i], &status, 0);
         }
         
     }
+
+
+    //deallocate argument list
+    for(int i=0; i<s_argc; i++)
+        free(*(s_argv+i));
+    free(s_argv);
+    
+    //deallocate command pointer
+    free(p_argv);
+    
     return status;
 }
 

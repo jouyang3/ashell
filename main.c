@@ -13,6 +13,8 @@ int main(int argc, char* argv[])
 
     init_history_table();
     
+    prompt_str = "aShell >> ";
+    
     SetNonCanon();
     
     while(true)

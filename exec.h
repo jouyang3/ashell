@@ -2,7 +2,7 @@
 #define EXEC_H
 
 int execute(char*);
-int exec(int, char***);
+void exec(char**);
 void arg_parse(char*, int*, char***, int*, char****);
 void close_pipes(int, int**);
 int redirect(char** argv);
