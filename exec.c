@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "util.h"
+#include "history.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -20,12 +21,26 @@ int execute(char* line)
     arg_parse(line, &s_argc, &s_argv, &p_cmdc, &p_argv);
     free(line);
     
-    int status = 0;
+    int status = exec(p_cmdc, p_argv);
+
+    //deallocate argument list
+    for(int i=0; i<s_argc; i++)
+        free(*(s_argv+i));
+    free(s_argv);
+    
+    //deallocate command pointer
+    free(p_argv);
+    
+    return status;
+}
+
+int exec(int p_cmdc, char*** p_argv)
+{
     
     //need to premade p_cmdc-1 pipes
     int** pipe_tb = (int**) malloc(sizeof(int*)*(p_cmdc-1));
     
-//    printf("p_cmdc = %d\n", p_cmdc);
+    //    printf("p_cmdc = %d\n", p_cmdc);
     for(int i=0;i<p_cmdc-1; ++i)
     {
         int* fd = (int*) malloc(2*sizeof(int));
@@ -33,9 +48,9 @@ int execute(char* line)
         pipe_tb[i] = fd;
     }
     
-    //now chain the pipes
-    
     //base case, 1 command, no pipe
+    int status = 0;
+    
     if(p_cmdc == 1)
     {
         pid_t pid = fork();
@@ -43,7 +58,19 @@ int execute(char* line)
         {
             int fd = redirect(p_argv[0]);
             close(fd);
-            execvp(p_argv[0][0], p_argv[0]);
+            
+            char* cmd = p_argv[0][0];
+            
+//            printf("cmd: %shaha\n",cmd);
+//            printf("strcmp(cmd, \"history\") = %d\n",strcmp(cmd,"history"));
+            
+            if(strcmp(cmd,"history") == 0)
+            {
+                history();
+            } else
+            {
+                execvp(p_argv[0][0], p_argv[0]);
+            }
             print_err(p_argv[0][0]);
         }
         waitpid(pid, &status, 0);
@@ -98,21 +125,11 @@ int execute(char* line)
         
         for(int i=0; i<p_cmdc; i++)
         {
-//            printf("waiting on %d\n",pids[i]);
+                        printf("waiting on %d\n",pids[i]);
             waitpid(pids[i], &status, 0);
         }
         
     }
-    
-
-    //deallocate argument list
-    for(int i=0; i<s_argc; i++)
-        free(*(s_argv+i));
-    free(s_argv);
-    
-    //deallocate command pointer
-    free(p_argv);
-    
     return status;
 }
 
@@ -155,9 +172,19 @@ int redirect(char** argv)
             argv[i] = NULL;
             char* out_file = argv[i + 1];
 //            printf("output file name: %s\n", out_file);
+            
+            //obtain current user's umask
+            mode_t mask = umask(S_IRUSR);
+            umask(mask);
+            
+            mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+            
+            
             int fd = open(
                 out_file,
-                O_WRONLY | O_CREAT /*, omitting creationg flags */);
+                O_WRONLY | O_CREAT, mode & ~mask);
+            
+            fchmod(fd, mode & ~mask);
 //            printf("errno: %s\n",strerror(errno));
 //            printf("EACCES: %d\n",EACCES);
 //            printf("output file fd: %d\n", fd);
@@ -217,6 +244,9 @@ void arg_parse(char* line, int* argc, char*** argv, int* cmdc, char**** argp)
                 (*argc)++;
                 cmd_argc++;
                 (*argv)[*argc] = (char*) malloc(MAX_ARG_SIZE * sizeof(char));
+                //clearout the string buffer
+                memset((*argv)[*argc], '\0', MAX_ARG_SIZE * sizeof(char));
+                
                 (*argv)[*argc][ctr] = *line;
                 ctr = 0;
                 allocated = false;
@@ -245,6 +275,8 @@ void arg_parse(char* line, int* argc, char*** argv, int* cmdc, char**** argp)
                     allocated = true;
                     
                     (*argv)[*argc] = (char*) malloc(MAX_ARG_SIZE * sizeof(char));
+                    //clearout the string buffer
+                    memset((*argv)[*argc], '\0', MAX_ARG_SIZE * sizeof(char));
                 }
 //                printf("Adding %c at argv[%d][%d]\n", *line, *argc, ctr);
                 (*argv)[*argc][ctr++] = *line;

@@ -7,8 +7,6 @@
 #include "config.h"
 #include "util.h"
 
-char** history_base;
-int history_cursor = 0;
 int history_user = 0;
 
 int prompt(char* line)
@@ -49,6 +47,8 @@ int prompt(char* line)
                         {
                             char* prev_cmd = *(history_base + history_user);
                             
+                            
+                            //Need to account for when it is full.
                             if(initline!=NULL && prev_cmd!=NULL) //some prev history and typed something
                                 clear_chars(strlen(initline));
                             if(prev_cmd == NULL){ //do nothing
@@ -116,6 +116,7 @@ void init_history_table()
     {
         (*(history_base+i)) = NULL;
     }
+    history_cursor = 0;
 }
 
 void update_history(char* line)

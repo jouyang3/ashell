@@ -1,6 +1,9 @@
 #ifndef PROMPT_H
 #define PROMPT_H
 
+char** history_base;
+int history_cursor;
+
 int prompt(char*);
 char read_char();
 void init_history_table();
