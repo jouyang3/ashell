@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 int execute(char* line)
 {
@@ -16,65 +19,92 @@ int execute(char* line)
     int p_cmdc = 0;
     arg_parse(line, &s_argc, &s_argv, &p_cmdc, &p_argv);
     free(line);
-
+    
     int status = 0;
     
-//    printf("Examining argument list.\n");
-//    for(int i=0; i<s_argc; i++)
-//    {
-//        printf("%s ", s_argv[i]);
-//    }
-//    printf("\n");
+    //need to premade p_cmdc-1 pipes
+    int** pipe_tb = (int**) malloc(sizeof(int*)*(p_cmdc-1));
     
-    
-//    printf("Examining command directory.\n");
-//    printf("# commands: %d.\n", p_cmdc);
-//    for(int i=0; i<p_cmdc; ++i)
-//    {
-//        printf("command %d: ", i);
-//        char** arg_ptr = p_argv[i];
-//        while((*arg_ptr)!=NULL)
-//        {
-//            printf("%s ", *arg_ptr);
-//            arg_ptr++;
-//        }
-//        printf("\n");
-//    }
-    
-    
-    //The following code is just a demo for a single-piped line
-    int fds[2];
-    pipe(fds);
-    //execute the piping routine
-    pid_t pid_src = fork();
-    pid_t pid_dest = fork();
-        
-    if(pid_src == 0)
+//    printf("p_cmdc = %d\n", p_cmdc);
+    for(int i=0;i<p_cmdc-1; ++i)
     {
-        dup2(fds[1], STDOUT_FILENO); // need to read from stdin
-        close(fds[0]);
-                
-        execvp(p_argv[0][0], p_argv[0]);
-        
-        perror(p_argv[0][0]);
+        int* fd = (int*) malloc(2*sizeof(int));
+        pipe(fd);
+        pipe_tb[i] = fd;
     }
     
-    if(pid_dest == 0)
+    //now chain the pipes
+    
+    //base case, 1 command, no pipe
+    if(p_cmdc == 1)
     {
-        dup2(fds[0], STDIN_FILENO);
-        close(fds[1]);
+        pid_t pid = fork();
+        if(pid == 0)
+        {
+            int fd = redirect(p_argv[0]);
+            close(fd);
+            execvp(p_argv[0][0], p_argv[0]);
+            print_err(p_argv[0][0]);
+        }
+        waitpid(pid, &status, 0);
+        return status;
+    }
+    else { // 2 or above commands
+        
+        int num_pipe = p_cmdc - 1;
+        //first command need pipe only to stdout
+        pid_t pids[p_cmdc];
+        
+        for(int i=0; i<p_cmdc; i++)
+        {
+            pids[i] = fork();
+            
+            if(pids[i] == 0)
+            {
+                if(i == 0)
+                {
+                    dup2(pipe_tb[0][1], STDOUT_FILENO);
+                    
+                    //redirection only occurs at first command
+                    int rfd = redirect(p_argv[0]);
+                    close(rfd);
+                    close_pipes(num_pipe, pipe_tb);
+                } else if (i == p_cmdc - 1)
+                {
+                    dup2(pipe_tb[i-1][0], STDIN_FILENO);
+                    
+                    //or last command
+                    int rfd = redirect(p_argv[0]);
+                    close(rfd);
+                    
+                    close_pipes(num_pipe, pipe_tb);
+                } else
+                {
+                    dup2(pipe_tb[i-1][0], STDIN_FILENO);
+                    dup2(pipe_tb[i][1], STDOUT_FILENO);
+                    close_pipes(num_pipe, pipe_tb);
+                }
                 
-        execvp(p_argv[1][0], p_argv[1]);
-        perror(p_argv[1][0]);
+                execvp(p_argv[i][0], p_argv[i]);
+                print_err(p_argv[i][0]);
+            }
+        }
+        
+        for(int j=0; j<num_pipe; ++j)
+        {
+            close(pipe_tb[j][0]);
+            close(pipe_tb[j][1]);
+        }
+        
+        for(int i=0; i<p_cmdc; i++)
+        {
+//            printf("waiting on %d\n",pids[i]);
+            waitpid(pids[i], &status, 0);
+        }
+        
     }
     
-    close(fds[0]); close(fds[1]);
-    
-    if(pid_dest != 0){
-        int status = 0;
-        waitpid(pid_dest, &status, 0); //only wait on the very last child
-    }
-    
+
     //deallocate argument list
     for(int i=0; i<s_argc; i++)
         free(*(s_argv+i));
@@ -84,6 +114,59 @@ int execute(char* line)
     free(p_argv);
     
     return status;
+}
+
+void print_err(char* cmd)
+{
+    if(errno == ENOENT)
+    {
+        char* msg = "No such file or directory\n";
+        write(STDERR_FILENO, cmd, strlen(cmd));
+        write(STDERR_FILENO, ": ", 2);
+        write(STDERR_FILENO, msg, strlen(msg));
+    }
+}
+
+void close_pipes(int num_pipe, int** pipe_tb)
+{
+    for(int j=0; j<num_pipe; ++j)
+    {
+        close(pipe_tb[j][0]);
+        close(pipe_tb[j][1]);
+    }
+}
+
+int redirect(char** argv)
+{
+    int i = 0;
+    while(argv[i] != NULL)
+    {
+//        printf("argv[%d] = %s\n", i, argv[i]);
+        if(argv[i][0] == '<')
+        {
+            argv[i] = NULL;
+            char* in_file = argv[i + 1];
+            printf("input file name: %s\n", in_file);
+            int fd = open(in_file, O_RDONLY);
+            dup2(fd, STDIN_FILENO);
+            return fd;
+        } else if(argv[i][0] == '>')
+        {
+            argv[i] = NULL;
+            char* out_file = argv[i + 1];
+//            printf("output file name: %s\n", out_file);
+            int fd = open(
+                out_file,
+                O_WRONLY | O_CREAT /*, omitting creationg flags */);
+//            printf("errno: %s\n",strerror(errno));
+//            printf("EACCES: %d\n",EACCES);
+//            printf("output file fd: %d\n", fd);
+            dup2(fd, STDOUT_FILENO);
+            return fd;
+        }
+        i++;
+    }
+    return -1;
 }
 
 void arg_parse(char* line, int* argc, char*** argv, int* cmdc, char**** argp)
