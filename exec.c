@@ -3,6 +3,9 @@
 #include "config.h"
 #include "util.h"
 #include "history.h"
+#include "ls.h"
+#include "cd.h"
+#include "pwd.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -18,6 +21,11 @@ void exec(char** argv)
     if(strcmp(argv[0],"history") == 0)
     {
         history();
+    } else if(strcmp(argv[0], "ls") == 0){
+        ls(argv[1]);
+    } else if(strcmp(argv[0], "pwd") == 0)
+    {
+        pwd();
     } else
     {
         execvp(argv[0], argv);
@@ -37,7 +45,7 @@ int execute(char* line)
     //need to premade p_cmdc-1 pipes
     int** pipe_tb = (int**) malloc(sizeof(int*)*(p_cmdc-1));
     
-    //    printf("p_cmdc = %d\n", p_cmdc);
+//        printf("p_cmdc = %d\n", p_cmdc);
     for(int i=0;i<p_cmdc-1; ++i)
     {
         int* fd = (int*) malloc(2*sizeof(int));
@@ -48,7 +56,15 @@ int execute(char* line)
     //base case, 1 command, no pipe
     int status = 0;
     
-    if(p_cmdc == 1)
+    if(p_argv[0][0] == NULL)
+    {
+        status = 0;
+    }
+    else if(strcmp(p_argv[0][0], "cd") == 0) // run in parent
+    {
+        status = cd(p_argv[0][1]);
+    }
+    else if(p_cmdc == 1)
     {
         pid_t pid = fork();
         if(pid == 0)
@@ -92,7 +108,7 @@ int execute(char* line)
                     dup2(pipe_tb[i-1][0], STDIN_FILENO);
                     
                     //or last command
-                    int rfd = redirect(p_argv[0]);
+                    int rfd = redirect(p_argv[i]);
                     close(rfd);
                     
                     close_pipes(num_pipe, pipe_tb);

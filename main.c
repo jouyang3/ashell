@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "util.h"
 #include "canon.h"
@@ -13,7 +14,7 @@ int main(int argc, char* argv[])
 
     init_history_table();
     
-    prompt_str = "aShell >> ";
+    init_prompt();
     
     SetNonCanon();
     
@@ -28,7 +29,8 @@ int main(int argc, char* argv[])
         strcpy(history_line, line); //strtok is destructive, need to preserve spaces
         if(!status) break; // normal exit of shell
         
-        update_history(history_line);
+        if(status == 1)
+            update_history(history_line);
         
         execute(line);
     }

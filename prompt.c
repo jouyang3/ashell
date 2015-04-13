@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <stdio.h>
+
 #include "config.h"
 #include "util.h"
 
@@ -29,6 +31,9 @@ int prompt(char* line)
                 write(STDOUT_FILENO, &c, 1);
                 line = initline;
                 history_user = history_cursor;
+                
+                if(strlen(line) == 0)
+                    return 2;
                 return 1; // Return key
             }
             case 0x1B:
@@ -105,6 +110,35 @@ int prompt(char* line)
             }
         }
     }
+}
+
+void init_prompt()
+{
+    prompt_str = (char*)malloc(MAX_LINE_SIZE*sizeof(char));
+    memset(prompt_str, '\0', MAX_LINE_SIZE);
+    getcwd(prompt_str, MAX_LINE_SIZE);
+    if(strlen(prompt_str) > 16)
+    {
+        
+        char* prompt_str_base = prompt_str;
+        strtok(prompt_str, "/");
+        char* fileptr;
+        while(prompt_str != NULL)
+        {
+            fileptr = prompt_str;
+            prompt_str = strtok(NULL, "/");
+        }
+        char rs[MAX_LINE_SIZE];
+        memset(rs, '\0', MAX_LINE_SIZE);
+        strcat(rs, "/../");
+        strcat(rs, fileptr);
+        
+        prompt_str = prompt_str_base;
+        memset(prompt_str, '\0', MAX_LINE_SIZE);
+        strcpy(prompt_str, rs);
+        
+    }
+    strcat(prompt_str, " > ");
 }
 
 void init_history_table()

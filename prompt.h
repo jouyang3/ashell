@@ -6,6 +6,7 @@ char* prompt_str;
 char** history_base;
 int history_cursor;
 
+void init_prompt();
 int prompt(char*);
 char read_char();
 void init_history_table();
