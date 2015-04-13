@@ -1,3 +1,21 @@
+/**
+ * Copyright (C) 2015  Jun D. Ouyang, Isaac Baron
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
 #include "exec.h"
 
 #include "config.h"
@@ -14,6 +32,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 //change stuff here.
 void exec(char** argv)
@@ -59,6 +78,10 @@ int execute(char* line)
     if(p_argv[0][0] == NULL)
     {
         status = 0;
+    }
+    else if(strcmp(p_argv[0][0], "exit") == 0)
+    {
+        exit(0); // GRACEFULLY!!!!
     }
     else if(strcmp(p_argv[0][0], "cd") == 0) // run in parent
     {
@@ -133,7 +156,7 @@ int execute(char* line)
         
         for(int i=0; i<p_cmdc; i++)
         {
-            printf("waiting on %d\n",pids[i]);
+//            printf("waiting on %d\n",pids[i]);
             waitpid(pids[i], &status, 0);
         }
         
@@ -202,7 +225,7 @@ int redirect(char** argv)
                 out_file,
                 O_WRONLY | O_CREAT, mode & ~mask);
             
-            fchmod(fd, mode & ~mask);
+            chmod(out_file, mode & ~mask);
 //            printf("errno: %s\n",strerror(errno));
 //            printf("EACCES: %d\n",EACCES);
 //            printf("output file fd: %d\n", fd);
